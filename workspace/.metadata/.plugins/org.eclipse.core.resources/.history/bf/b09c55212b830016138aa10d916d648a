@@ -1,0 +1,107 @@
+package fedEx;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+public class OrderSimulation extends Thread{
+
+	private Connection getDbConnection(){
+		 
+		Connection con = null;
+		try {
+			Class.forName("com.mysql.jdbc.Driver");
+			con = DriverManager.getConnection("jdbc:mysql://localhost:3306/fed_ex?autoReconnect=true&useSSL=false","root","root");
+		} catch (SQLException e) {
+			e.printStackTrace();
+		} catch (ClassNotFoundException e1) {
+			e1.printStackTrace();
+		}  
+		return con;
+	}
+	
+	public void run(){
+		Connection con = getDbConnection();
+		String orderStatusUpdateQuery = "INSERT INTO fed_ex.order_tracking(tracking_id,city,city_status,tracking_date)VALUES(?,?,?,?)";
+		String orderInfoQuery = "Select tracking_id, order_shortest_travel,order_status,orders_curr_city from fed_ex.orders where tracking_id = ?";
+		
+		PreparedStatement st_orderStatusUpdateQuery;
+		PreparedStatement st_orderInfoQuery;
+		
+		//int k=1;
+		//for(int i=1;i<=10;i++){
+			for(int j=1;j<=100000;j++){
+				try{
+					st_orderInfoQuery = con.prepareStatement(orderInfoQuery);
+					st_orderInfoQuery.setInt(1, j);
+					ResultSet rs_orderInfoQuery = st_orderInfoQuery.executeQuery();
+					rs_orderInfoQuery.next();
+					
+					String ShortestPath = rs_orderInfoQuery.getString(2);
+					String status = rs_orderInfoQuery.getString(3);
+					int curr_city = rs_orderInfoQuery.getInt(4);
+					List<Integer> cityList = converter(ShortestPath);
+					
+					if(curr_city == 0){
+						st_orderStatusUpdateQuery = con.prepareStatement(orderStatusUpdateQuery);
+						st_orderStatusUpdateQuery.setInt(1, j);
+						st_orderStatusUpdateQuery.setInt(2, cityList.get(0));
+						st_orderStatusUpdateQuery.setString(3, "Departed From "+cityList.get(0));
+						st_orderStatusUpdateQuery.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+					}
+					
+				}
+				catch(SQLException se)
+				{
+					se.printStackTrace();
+				}
+			}
+			//k=10000;
+		//}
+		
+	}
+	
+	public void orderTracker(Map<String,String>trackingData){
+		
+		Connection con = getDbConnection();
+		String query = "INSERT INTO fed_ex.order_tracking(tracking_id,city,city_status,tracking_date)VALUES(?,?,?,?)";
+		
+		
+		
+		try{
+			PreparedStatement st = con.prepareStatement(query);
+			st.setInt(1, Integer.parseInt(trackingData.get("tracking_id").toString()));
+			st.setInt(2, getCityIdFromName(trackingData.get("city").toString()));
+			st.setString(3, trackingData.get("curr_tracking_status").toString());
+			st.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+		}
+		catch(SQLException se){
+			se.printStackTrace();
+		}
+	}
+	
+	private List<Integer> converter(String str){
+		
+		List<Integer> intList = new ArrayList<Integer>();
+		String [] splitedData = str.split("@");
+		for(int i=0;i<splitedData.length;i++){
+			intList.add(Integer.parseInt(splitedData[i]));
+		}
+		return intList;
+	}
+
+
+
+
+
+
+
+
+
+}

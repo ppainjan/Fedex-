@@ -1,0 +1,198 @@
+package fedEx;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+public class DijkstrasAlgorithm {
+	
+	class VisitedCities{
+		private int visitedCity;
+		private int fromCity;
+		private int distance;
+		private boolean used;
+		
+		public VisitedCities(){}		
+		
+		public VisitedCities(int visitedCity, int fromCity, int distance, boolean used) {
+			super();
+			this.visitedCity = visitedCity;
+			this.fromCity = fromCity;
+			this.distance = distance;
+			this.used = used;
+		}
+
+		public int getVisitedCity() {
+			return visitedCity;
+		}
+		public void setVisitedCity(int visitedCity) {
+			this.visitedCity = visitedCity;
+		}
+		public int getFromCity() {
+			return fromCity;
+		}
+		public void setFromCity(int fromCity) {
+			this.fromCity = fromCity;
+		}
+		public int getDistance() {
+			return distance;
+		}
+		public void setDistance(int distance) {
+			this.distance = distance;
+		}
+		public boolean isUsed() {
+			return used;
+		}
+		public void setUsed(boolean used) {
+			this.used = used;
+		}	
+	}
+	class NeighbourCities{
+		private int city;
+		private int distance;
+		public int getCity() {
+			return city;
+		}
+		public void setCity(int city) {
+			this.city = city;
+		}
+		public int getDistance() {
+			return distance;
+		}
+		public void setDistance(int distance) {
+			this.distance = distance;
+		}
+		
+		
+	}
+
+	private String pathToDestination = null;
+	
+	private Connection getDbConnection(){
+		 
+		Connection con = null;
+		try {
+			Class.forName("com.mysql.jdbc.Driver");
+			con = DriverManager.getConnection("jdbc:mysql://localhost:3306/fed_ex?autoReconnect=true&useSSL=false","root","root");
+		} catch (SQLException e) {
+			e.printStackTrace();
+		} catch (ClassNotFoundException e1) {
+			e1.printStackTrace();
+		}  
+		return con;
+	}
+	
+	private List<NeighbourCities> findNeighbours(int sourceCity, int sourceCityDist){
+		
+		Connection con = getDbConnection();
+		String query = "Select destination_city, distance from fed_ex.city_mapping where source_city = ?";
+		List<NeighbourCities> neighboursCities = new ArrayList<NeighbourCities>();
+		PreparedStatement st;
+		try{
+			st = con.prepareStatement(query);
+			st.setInt(1, sourceCity);
+			ResultSet rs = st.executeQuery();
+			
+			while(rs.next()){
+				NeighbourCities nc = new NeighbourCities();
+				nc.setCity(rs.getInt(1));
+				nc.setDistance(sourceCityDist+rs.getInt(2));
+				
+				neighboursCities.add(nc);
+			}
+		}
+		catch(SQLException se){
+			se.printStackTrace();
+		}
+		return neighboursCities;
+	}
+
+	public List<Integer> dijkstrasAlgo(int sourceCity, int destinationCity){
+		
+		//Add Source City as Visited with distance 0
+		VisitedCities vCities = new VisitedCities(sourceCity,sourceCity,0,true);
+		
+		List<VisitedCities> listVisitedCities = new ArrayList<VisitedCities>();
+		listVisitedCities.add(vCities);
+		
+		int newSourceCity = sourceCity;
+		int newSourceCityDist = 0;
+		while(true){
+			
+			// Find Neighbors of Source City and Find nearest one from them
+			List<NeighbourCities> nCities = new ArrayList<NeighbourCities>();
+			nCities = findNeighbours(newSourceCity,newSourceCityDist);
+			
+			//Add neighbour to visited list and update their min dist if required 
+			for(NeighbourCities ncity : nCities){
+				boolean flag = true;
+				for(VisitedCities vcity : listVisitedCities){
+					if(vcity.getVisitedCity()==ncity.getCity()){
+						flag = false;
+						if(vcity.getDistance()>ncity.getDistance()){
+							vcity.setFromCity(newSourceCity);
+							vcity.setDistance(ncity.getDistance());
+						}
+					}
+				}
+				if(flag){
+					VisitedCities newVisitedCity = new VisitedCities(ncity.getCity(),newSourceCity,ncity.getDistance(),false);
+					listVisitedCities.add(newVisitedCity);
+				}
+			}	
+			
+			//find new neighbour who has min dist and use it as new source
+			int minDist = Integer.MAX_VALUE;
+			int cityId = 0;
+			for(VisitedCities vcity : listVisitedCities){
+				if(minDist>vcity.getDistance() && !vcity.isUsed()){
+					minDist =vcity.getDistance();
+					cityId = vcity.getVisitedCity();
+				}
+			}
+			
+			//Set selected city as used true
+			for(VisitedCities vcity : listVisitedCities){
+				if(vcity.getVisitedCity() == cityId){
+					vcity.setUsed(true);
+					break;
+				}
+			}
+			
+			if(cityId != 0){
+				newSourceCity = cityId;
+				newSourceCityDist = minDist;
+			}
+			else
+				break;
+		}
+		
+		int newDestCity = destinationCity;
+		List<Integer> temp = new ArrayList<Integer>();
+		temp.add(newDestCity);
+		while(newDestCity != sourceCity){
+			
+			for(int i=0; i<listVisitedCities.size();i++){
+				if(listVisitedCities.get(i).getVisitedCity() == newDestCity){
+					newDestCity = listVisitedCities.get(i).getFromCity();
+					break;
+				}
+			}
+			temp.add(newDestCity);
+		}
+		
+		for(int i = temp.size()-1;i>=0;i--){
+			if(pathToDestination == null)
+				pathToDestination=temp.get(i).toString();
+			else
+				pathToDestination=pathToDestination+"@"+temp.get(i);
+		}
+		
+		return null;
+	}
+	
+}

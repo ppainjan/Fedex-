@@ -1,0 +1,84 @@
+package fedEx;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.Random;
+
+public class OrderCreationThread extends Thread{
+	
+	private int thread;
+	
+	public OrderCreationThread(int n){
+		thread = n;
+	}
+	
+	private Connection getDbConnection(){
+		 
+		Connection con = null;
+		try {
+			Class.forName("com.mysql.jdbc.Driver");
+			con = DriverManager.getConnection("jdbc:mysql://localhost:3306/fed_ex?autoReconnect=true&useSSL=false","root","root");
+		} catch (SQLException e) {
+			e.printStackTrace();
+		} catch (ClassNotFoundException e1) {
+			e1.printStackTrace();
+		}  
+		return con;
+	}
+	
+	
+	public void run(){
+		
+		Connection con = getDbConnection(); 
+		
+		String query = "INSERT INTO fed_ex.orders(Service,weight,dimensions,signature_service,total_pieces,"
+				+ "packaging,special_handeling_section,order_shortest_travel,order_status) VALUES(?,?,?,?,?,?,?,?,?)";
+		
+		PreparedStatement st;
+		for(int i=0;i<100;i++){
+			System.out.println("In Thread "+thread+" creating order: "+i);
+			Random r = new Random();
+			int Low = 1;
+			int High = 26;
+			int sCityId = r.nextInt(High-Low) + Low;
+			int dcityId = r.nextInt(High-Low) + Low;
+			while(sCityId == dcityId){
+				dcityId = r.nextInt(High-Low) + Low;
+			}
+			String shortPath = new DijkstrasAlgorithm().dijkstrasAlgo(sCityId, dcityId);
+			
+			try {
+				
+				st = con.prepareStatement(query);
+				st.setString(1, "FedEx Home Delivery");
+				st.setString(2, "2kgs");
+				st.setString(3, "10x10x3cms");
+				st.setString(4, "Direct Signature Required");
+				st.setInt(5, 1);
+				st.setString(6, "Package");
+				st.setString(7, "Direct Signature Required");			
+				st.setString(8, shortPath);
+				st.setString(9, "In Transit");
+				st.executeUpdate();
+				
+				st.close();
+				
+				
+				
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+		}
+		
+		try{
+			con.close();
+		}
+		catch(SQLException se){
+			se.printStackTrace();
+		}
+		
+	}
+
+}
